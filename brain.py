@@ -1,89 +1,86 @@
-from google import genai
-from google.genai import types
-import speech_recognition as sr
-import subprocess
 import os
-import wave
-from dotenv import load_dotenv  
+import sys
+import queue
+import sounddevice as sd
+import vosk
+import json
+import ollama
+import subprocess
+import time
 
-load_dotenv()
+vosk_model = vosk.Model("model")
+q = queue.Queue()
 
-api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+HW_RATE = 48000 
 
-TEXT_MODEL = "gemini-2.5-flash"
-TTS_MODEL = "gemini-2.5-flash-preview-tts"
-
-def save_wave_file(filename, pcm_data):
-    """Saves raw audio bytes into a playable file."""
-    with wave.open(filename, "wb") as wf:
-        wf.setnchannels(1)          
-        wf.setsampwidth(2)          
-        wf.setframerate(24000)      
-        wf.writeframes(pcm_data)
+def callback(indata, frames, time, status):
+    q.put(bytes(indata))
 
 def speak(text):
-    """Generates the AI voice and plays it through the USB Speaker."""
-    print(f"\n🤖 Chikapi: {text}")
-    try:
-        response = client.models.generate_content(
-            model=TTS_MODEL,
-            contents=text,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
-                    )
-                )
-            )
-        )
+    """Uses Piper for a natural voice, piped directly to Card 2."""
+    print(f"🤖 Chikapi: {text}")
 
-        audio_bytes = response.candidates[0].content.parts[0].inline_data.data
-        save_wave_file("response.wav", audio_bytes)
-        
-        # PLAYBACK: Force to Card 3 (USB Speaker)
-        subprocess.run(["aplay", "-D", "plughw:3,0", "response.wav"])
-    except Exception as e:
-        print(f"Voice Error: {e}")
-
-def listen():
-    """Records from the auto-detected USB Mic."""
-    r = sr.Recognizer()
-    r.dynamic_energy_threshold = False
-    r.energy_threshold = 300 
+    model_path = "en_US-lessac-medium.onnx"
     
-    try:
-        with sr.Microphone(sample_rate=44100) as source:
-            print("\n👂 Listening... (Talk now)")
-            r.adjust_for_ambient_noise(source, duration=0.2)
-            audio = r.listen(source, timeout=3, phrase_time_limit=5)
-        
-        print("🧠 Thinking...")
-        query = r.recognize_google(audio)
-        print(f"👤 You: {query}")
-        return query
-        
-    except sr.WaitTimeoutError:
-        return None
-    except sr.UnknownValueError:
-        return None
-    except Exception as e:
-        print(f"Debug Mic Error: {e}")
-        return None
+    clean_text = text.replace("'", "").replace('"', "")
+    
+    command = f'echo "{clean_text}" | piper --model {model_path} --output_raw | aplay -D plughw:2,0 -f S16_LE -r 22050'
+    
+    os.system("amixer -c 2 sset 'Speaker' 100% > /dev/null 2>&1")
+    
+    time.sleep(0.3)
+    subprocess.run(command, shell=True)
 
-if __name__ == "__main__":
-    speak("System rebooted. I am listening.")
+def main():
+    messages = [{"role": "system", "content": "You are Zubo, a helpful assistant. Short answers."}]
+    
+    # Startup Greeting
+    speak("Hello, Im Zubo. How can I help you?")
+    print("🤖 Zubo: Local System Active on Card 2. Talk to me!")
     
     while True:
-        user_input = listen()
-        if user_input:
-            if any(word in user_input.lower() for word in ["exit", "stop", "goodbye"]):
-                speak("Goodbye!")
-                break
+        try:
+            # We open the mic at 48k to match the hardware lock
+            with sd.RawInputStream(samplerate=HW_RATE, blocksize=8000, dtype='int16',
+                                   channels=1, callback=callback, device=2):
                 
+                # Vosk handles the 48k stream internally
+                rec = vosk.KaldiRecognizer(vosk_model, HW_RATE)
+                user_text = ""
+                
+                while True:
+                    data = q.get()
+                    if rec.AcceptWaveform(data):
+                        result = json.loads(rec.Result())
+                        user_text = result.get("text", "")
+                        if user_text:
+                            break 
+        except Exception as e:
+            print(f"❌ Mic Error: {e}")
+            time.sleep(1)
+            continue
+            
+        if user_text:
+            print(f"👤 You: {user_text}")
+            messages.append({"role": "user", "content": user_text})
+            
+            print("🧠 Thinking...")
             try:
-                res = client.models.generate_content(model=TEXT_MODEL, contents=user_input)
-                speak(res.text)
+                response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
+                ai_text = response['message']['content']
+                messages.append({"role": "assistant", "content": ai_text})
+                
+                speak(ai_text)
+                
             except Exception as e:
-                print(f"AI Error: {e}")
+                print(f"Brain Error: {e}")
+            
+            while not q.empty():
+                try: q.get_nowait()
+                except: break
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n👋 System Offline.")
