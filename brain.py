@@ -65,6 +65,43 @@ def callback(indata, frames, time, status):
     q.put(bytes(indata))
 
 
+# --- LLM PERFORMANCE TUNING ---
+# Keep these configurable via environment variables so we can tune speed
+# on-device without changing code again.
+MODEL_NAME = os.getenv("ZUBO_MODEL", "qwen2.5:0.5b")
+MAX_HISTORY_TURNS = int(os.getenv("ZUBO_HISTORY_TURNS", "4"))
+LLM_KEEP_ALIVE = os.getenv("ZUBO_LLM_KEEP_ALIVE", "30m")
+# Brief closed-mouth gap between words to make speech animation read clearly.
+MOUTH_WORD_GAP_MS = int(os.getenv("ZUBO_MOUTH_WORD_GAP_MS", "40"))
+# Compensates for audio buffer + USB speaker latency so mouth animation
+# doesn't start before sound is actually audible.
+AUDIO_LATENCY_MS = int(os.getenv("ZUBO_AUDIO_LATENCY_MS", "1000"))
+
+
+def llm_options():
+    cpu_threads = os.cpu_count() or 4
+    return {
+        # Smaller context windows are much faster on Raspberry Pi hardware.
+        "num_ctx": int(os.getenv("ZUBO_NUM_CTX", "1024")),
+        # Keep responses short by default to reduce generation latency.
+        "num_predict": int(os.getenv("ZUBO_NUM_PREDICT", "64")),
+        # Use all available CPU threads unless overridden.
+        "num_thread": int(os.getenv("ZUBO_NUM_THREAD", str(cpu_threads))),
+        # Slightly lower temperature can reduce rambling output.
+        "temperature": float(os.getenv("ZUBO_TEMPERATURE", "0.3")),
+    }
+
+
+def trim_history(messages, max_turns):
+    """Keep system prompt + last N user/assistant turns for speed."""
+    if len(messages) <= 1:
+        return messages
+    if max_turns <= 0:
+        return messages[:1]
+    keep_items = max_turns * 2
+    return [messages[0]] + messages[-keep_items:]
+
+
 def resolve_piper_exe():
     """Use venv/bin/piper next to this file; subprocess often lacks activated PATH."""
     base = os.path.dirname(os.path.abspath(__file__))
@@ -138,16 +175,49 @@ def speak(text):
             weights.append(weight)
 
         total_weight = sum(weights)
-        ends = []
+
+        # Build word intervals with small gaps so the mouth visibly closes
+        # between words, making it look like real speech.
+        gap_s = max(0.0, MOUTH_WORD_GAP_MS / 1000.0)
+        if len(words) > 1 and gap_s > 0.0:
+            max_total_gap = total_duration * 0.22
+            gap_s = min(gap_s, max_total_gap / (len(words) - 1))
+        else:
+            gap_s = 0.0
+
+        speech_budget = total_duration - gap_s * max(0, len(words) - 1)
+        if speech_budget <= 0:
+            speech_budget = total_duration
+            gap_s = 0.0
+
+        intervals = []
         cursor = 0.0
-        for weight in weights:
-            cursor += (weight / total_weight) * total_duration
-            ends.append(cursor)
+        for i, (word, weight) in enumerate(zip(words, weights)):
+            dur = (weight / total_weight) * speech_budget
+            intervals.append({"word": word, "start": cursor, "end": cursor + dur})
+            cursor += dur
+            if i < len(words) - 1:
+                cursor += gap_s
+
+        # Write timing data before playback starts. Add audio latency offset
+        # so face.py waits until sound is actually audible from the speaker.
+        playback_start = time.time() + (AUDIO_LATENCY_MS / 1000.0)
+        mouth_data = json.dumps({
+            "start_time": playback_start,
+            "duration": total_duration,
+            "intervals": intervals,
+        })
+        try:
+            with open("mouth.json", "w") as mf:
+                mf.write(mouth_data)
+        except Exception:
+            pass
+
+        set_face("SPEAKING")
 
         out_dev = resolve_output_device()
-        chunk_samples = 1024  # ~46ms at 22.05kHz
+        chunk_samples = 1024
         chunk_bytes = chunk_samples * 2
-        last_face_state = None
 
         with sd.RawOutputStream(
             samplerate=sample_rate,
@@ -161,21 +231,6 @@ def speak(text):
                 chunk = audio_bytes[byte_pos:byte_pos + chunk_bytes]
                 if not chunk:
                     break
-
-                chunk_start_samples = byte_pos // 2
-                mid_t = (chunk_start_samples / sample_rate) + ((len(chunk) // 2) / sample_rate) / 2.0
-
-                word_idx = 0
-                while word_idx < len(ends) and mid_t > ends[word_idx]:
-                    word_idx += 1
-                if word_idx >= len(words):
-                    word_idx = len(words) - 1
-
-                face_state = f"SPEAKING:{words[word_idx]}"
-                if face_state != last_face_state:
-                    set_face(face_state)
-                    last_face_state = face_state
-
                 stream.write(chunk)
                 byte_pos += len(chunk)
 
@@ -219,10 +274,24 @@ def speak(text):
         set_face("IDLE")
 
 def main():
-    messages = [{"role": "system", "content": "You are Zubo, a helpful assistant. Short answers."}]
+    messages = [
+        {
+            "role": "system",
+            "content": "You are Zubo, a helpful assistant. Keep answers short and direct.",
+        }
+    ]
     input_dev = resolve_input_device()
 
-    speak("Hello, Im Zubo. How can I help you?")
+    # Warm the model once at startup so first real question feels snappier.
+    try:
+        ollama.chat(
+            model=MODEL_NAME,
+            messages=messages,
+            options=llm_options(),
+            keep_alive=LLM_KEEP_ALIVE,
+        )
+    except Exception as warm_err:
+        print(f"LLM warmup skipped: {warm_err}")
 
     while True:
         try:
@@ -243,12 +312,22 @@ def main():
         if user_text:
             print(f"👤 You: {user_text}")
             messages.append({"role": "user", "content": user_text})
+            messages = trim_history(messages, MAX_HISTORY_TURNS)
 
             set_face("THINKING")
             try:
-                response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
+                t0 = time.perf_counter()
+                response = ollama.chat(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    options=llm_options(),
+                    keep_alive=LLM_KEEP_ALIVE,
+                )
+                elapsed = time.perf_counter() - t0
+                print(f"LLM latency: {elapsed:.2f}s")
                 ai_text = response['message']['content']
                 messages.append({"role": "assistant", "content": ai_text})
+                messages = trim_history(messages, MAX_HISTORY_TURNS)
                 speak(ai_text)
             except Exception as e:
                 print(f"Brain Error: {e}")

@@ -1,0 +1,22 @@
+[Unit]
+Description=Zubo GPIO Power Orchestrator
+After=multi-user.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=hello
+WorkingDirectory=/home/hello/zubo
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/hello/.Xauthority
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/hello/zubo/venv/bin/python /home/hello/zubo/brain_power.py
+Restart=always
+RestartSec=1
+KillMode=control-group
+TimeoutStopSec=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

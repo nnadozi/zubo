@@ -1,19 +1,27 @@
 #!/bin/bash
 
-echo "🚀 Powering up Zubo..."
+set -eu
 
-# 1. Activate the virtual environment
-source venv/bin/activate
+echo "[start] Launching Zubo power orchestrator..."
 
-# 2. Start the Face in the background (using the & symbol)
-# We save its Process ID ($!) so we can close it later
-DISPLAY=:0 python face.py &
-FACE_PID=$!
+# Always run from this script's directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# 3. Create a "Trap"
-# This listens for you pressing Ctrl+C. When it hears it, it kills the Face app cleanly.
-trap "echo -e '\n🛑 Shutting down Face...'; kill $FACE_PID 2>/dev/null; exit" INT TERM
+# Activate virtualenv if present, but keep startup working without it.
+if [ -f "venv/bin/activate" ]; then
+  # shellcheck source=/dev/null
+  source "venv/bin/activate"
+fi
 
-# 4. Start the Brain in the foreground
-# This takes over your terminal so you can see the logs and talk to it.
-python brain.py
+# Local LLM defaults tuned for Raspberry Pi latency.
+# You can override any of these before running start.sh.
+# Best default speed/quality balance for Raspberry Pi local inference.
+export ZUBO_MODEL="${ZUBO_MODEL:-smollm2:360m}"
+export ZUBO_NUM_CTX="${ZUBO_NUM_CTX:-1024}"
+export ZUBO_NUM_PREDICT="${ZUBO_NUM_PREDICT:-64}"
+export ZUBO_HISTORY_TURNS="${ZUBO_HISTORY_TURNS:-4}"
+export ZUBO_LLM_KEEP_ALIVE="${ZUBO_LLM_KEEP_ALIVE:-30m}"
+
+# brain_power.py owns all lifecycle behavior for brain/face/volume.
+exec python "brain_power.py"

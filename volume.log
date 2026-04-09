@@ -1,0 +1,74 @@
+/usr/lib/python3/dist-packages/gpiozero/devices.py:300: PinFactoryFallback: Falling back from lgpio: 'can not open gpiochip'
+  warnings.warn(
+/usr/lib/python3/dist-packages/gpiozero/devices.py:300: PinFactoryFallback: Falling back from rpigpio: 'can not open gpiochip'
+  warnings.warn(
+/usr/lib/python3/dist-packages/gpiozero/devices.py:300: PinFactoryFallback: Falling back from pigpio: No module named 'pigpio'
+  warnings.warn(
+/usr/lib/python3/dist-packages/gpiozero/devices.py:300: PinFactoryFallback: Falling back from native: unable to open /dev/gpiomem or /dev/mem; upgrade your kernel or run as root
+  warnings.warn(
+Traceback (most recent call last):
+  File "/home/hello/zubo/volume.py", line 7, in <module>
+    vol_up_btn = Button(21, bounce_time=0.15)
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 108, in __call__
+    self = super().__call__(*args, **kwargs)
+  File "/usr/lib/python3/dist-packages/gpiozero/input_devices.py", line 412, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        pin, pull_up=pull_up, active_state=active_state,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        bounce_time=bounce_time, pin_factory=pin_factory)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/mixins.py", line 417, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/input_devices.py", line 162, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        pin, pull_up=pull_up, active_state=active_state,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        pin_factory=pin_factory)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/mixins.py", line 243, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/input_devices.py", line 79, in __init__
+    super().__init__(pin, pin_factory=pin_factory)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 544, in __init__
+    super().__init__(pin_factory=pin_factory)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 245, in __init__
+    Device.ensure_pin_factory()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 270, in ensure_pin_factory
+    Device.pin_factory = Device._default_pin_factory()
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 302, in _default_pin_factory
+    raise BadPinFactory('Unable to load any default pin factory!')
+gpiozero.exc.BadPinFactory: Unable to load any default pin factory!
+2026-04-09T14:49:07 | --- Zubo Volume Control Active ---
+2026-04-09T14:49:07 | --- Zubo Volume Control Active ---
+2026-04-09T14:49:07 | Using USB Audio Card 0 -> 'PCM'
+2026-04-09T14:49:07 | Using USB Audio Card 0 -> 'PCM'
+2026-04-09T14:49:07 | Press P21 (Bottom) or P20 (Above)
+2026-04-09T14:49:07 | Press P21 (Bottom) or P20 (Above)
+2026-04-09T14:49:22 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:22 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:23 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:23 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:24 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:24 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:25 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:25 | 🔊 Volume UP   [||||||    ] +10%
+2026-04-09T14:49:28 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:28 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:29 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:29 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:30 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:30 | 🔉 Volume DOWN [|||       ] -10%
+2026-04-09T14:49:38 | --- Zubo Volume Control Active ---
+2026-04-09T14:49:38 | --- Zubo Volume Control Active ---
+2026-04-09T14:49:38 | Using USB Audio Card 0 -> 'PCM'
+2026-04-09T14:49:38 | Using USB Audio Card 0 -> 'PCM'
+2026-04-09T14:49:38 | Press P21 (Bottom) or P20 (Above)
+2026-04-09T14:49:38 | Press P21 (Bottom) or P20 (Above)
