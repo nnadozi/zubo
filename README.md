@@ -1,4 +1,4 @@
-# Zubo: Embedded AI Desktop Assistant
+# Zubo: Embedded AI Assistant
 
 Zubo is a voice-controlled, hardware-integrated desktop assistant powered by a Raspberry Pi 5. It utilizes local LLMs for private, offline intelligence and a custom GPIO-driven control system for power and volume management.
 
