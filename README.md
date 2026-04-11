@@ -72,3 +72,9 @@ zubo/
 - **Talk to Zubo:** The face will change to `THINKING` while processing and `SPEAKING` during output.
 - **Adjust Volume:** Use the dedicated physical buttons to control the USB speaker level.
 
+## Pictures
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d379d4fd-9005-441a-81de-b3db95344c83" width="250"/>
+  <img src="https://github.com/user-attachments/assets/eb6597f3-cb23-4ace-a202-9254ace0c58d" width="250"/>
+  <img src="https://github.com/user-attachments/assets/1f2e3981-31c2-4077-8e68-8ea8d2a67df3" width="250"/>
+</p>
